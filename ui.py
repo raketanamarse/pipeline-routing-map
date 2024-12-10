@@ -5,6 +5,74 @@ from tkinter import ttk, filedialog
 import webbrowser 
 from PIL import Image, ImageTk, ImageSequence
 
+#------------------------------------------------------------------------------------------------------------------        
+
+import os
+from tkinter import Tk, filedialog, simpledialog, messagebox
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.hashes import SHA256
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+
+
+def derive_key(password: str, salt: bytes, iterations: int = 100000) -> bytes:
+    """Генерация ключа на основе пароля и соли"""
+    kdf = PBKDF2HMAC(
+        algorithm=SHA256(),
+        length=32,
+        salt=salt,
+        iterations=iterations,
+        backend=default_backend(),
+    )
+    return kdf.derive(password.encode())
+
+def encrypt_file(file_path: str, password: str, output_path: str):
+    """Шифрование файла"""
+    salt = os.urandom(16)
+    key = derive_key(password, salt)
+    iv = os.urandom(16)
+
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+
+    with open(file_path, 'rb') as f:
+        data = f.read()
+
+    padder = padding.PKCS7(128).padder()
+    padded_data = padder.update(data) + padder.finalize()
+
+    encrypted_data = encryptor.update(padded_data) + encryptor.finalize()
+
+    with open(output_path, 'wb') as f:
+        f.write(salt + iv + encrypted_data)
+
+    messagebox.showinfo("Успех", f"Файл успешно зашифрован и сохранён как {output_path}")
+
+def main_crypt():
+    root = Tk()
+    root.withdraw()
+
+    file_path = filedialog.askopenfilename(title="Выберите файл для шифрования")
+    if not file_path:
+        return
+
+    password = simpledialog.askstring("Пароль", "Введите пароль для шифрования", show="*")
+    if not password:
+        messagebox.showerror("Ошибка", "Пароль не может быть пустым")
+        return
+
+    output_path = filedialog.asksaveasfilename(title="Сохранить зашифрованный файл", defaultextension=".bin")
+    if not output_path:
+        return
+
+    try:
+        encrypt_file(file_path, password, output_path)
+    except Exception as e:
+        messagebox.showerror("Ошибка", f"Не удалось зашифровать файл: {e}")
+
+
+#------------------------------------------------------------------------------------------------------------------        
 
 def select_file(label, filetypes):
     filename = filedialog.askopenfilename(
@@ -50,6 +118,7 @@ def action_3():
 
 def select_type():
     print("Нажата кнопка 'Тип'")
+    main_crypt()
 
 
 def main():
